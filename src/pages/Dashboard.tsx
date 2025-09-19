@@ -67,7 +67,7 @@ const Dashboard = () => {
       return;
     }
 
-    // Calculate CGPA: weighted average of all SGPAs
+    // Calculate CGPA: weighted average of all SGPAs using only graded credits
     let totalWeightedPoints = 0;
     let totalCredits = 0;
 

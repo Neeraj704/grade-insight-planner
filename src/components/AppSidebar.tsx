@@ -60,11 +60,11 @@ export function AppSidebar() {
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      end={item.url === '/'}
-                      className={({ isActive }) => getNavCls({ isActive })}
-                    >
+                     <NavLink 
+                       to={item.url} 
+                       end={item.url === '/' || item.url === '/semesters'}
+                       className={({ isActive }) => getNavCls({ isActive })}
+                     >
                       <item.icon className="h-4 w-4 flex-shrink-0" />
                       <span>{item.title}</span>
                     </NavLink>

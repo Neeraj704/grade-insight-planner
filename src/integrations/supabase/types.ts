@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           branch: string
           default_credits: number
+          grading_scheme_id: number | null
           id: number
           semester: number
           subject_name: string
@@ -26,6 +27,7 @@ export type Database = {
         Insert: {
           branch: string
           default_credits: number
+          grading_scheme_id?: number | null
           id?: never
           semester: number
           subject_name: string
@@ -34,10 +36,43 @@ export type Database = {
         Update: {
           branch?: string
           default_credits?: number
+          grading_scheme_id?: number | null
           id?: never
           semester?: number
           subject_name?: string
           year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_subject_templates_grading_scheme_id_fkey"
+            columns: ["grading_scheme_id"]
+            isOneToOne: false
+            referencedRelation: "grading_schemes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grading_schemes: {
+        Row: {
+          created_at: string | null
+          grade_cutoffs: Json
+          id: number
+          is_default: boolean
+          scheme_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          grade_cutoffs: Json
+          id?: never
+          is_default?: boolean
+          scheme_name: string
+        }
+        Update: {
+          created_at?: string | null
+          grade_cutoffs?: Json
+          id?: never
+          is_default?: boolean
+          scheme_name?: string
         }
         Relationships: []
       }
@@ -119,7 +154,10 @@ export type Database = {
           cws_mark: number | null
           ete_mark: number | null
           id: number
+          is_graded: boolean
           mte_mark: number | null
+          overridden_grade: string | null
+          overridden_points: number | null
           semester_id: number
           subject_name: string
         }
@@ -129,7 +167,10 @@ export type Database = {
           cws_mark?: number | null
           ete_mark?: number | null
           id?: never
+          is_graded?: boolean
           mte_mark?: number | null
+          overridden_grade?: string | null
+          overridden_points?: number | null
           semester_id: number
           subject_name: string
         }
@@ -139,7 +180,10 @@ export type Database = {
           cws_mark?: number | null
           ete_mark?: number | null
           id?: never
+          is_graded?: boolean
           mte_mark?: number | null
+          overridden_grade?: string | null
+          overridden_points?: number | null
           semester_id?: number
           subject_name?: string
         }

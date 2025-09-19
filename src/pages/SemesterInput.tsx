@@ -4,10 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Save, Trash2, RotateCcw, Target } from 'lucide-react';
+import { Plus, Save, Trash2, RotateCcw, Target, Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Table,
@@ -24,6 +25,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface SubjectMark {
   id?: number;
@@ -37,9 +55,19 @@ interface SubjectMark {
     mte: boolean;
     ete: boolean;
   };
+  is_graded: boolean;
+  overridden_grade: string | null;
+  overridden_points: number | null;
   total: number;
   grade: string;
   points: number;
+}
+
+interface GradingScheme {
+  id: number;
+  scheme_name: string;
+  grade_cutoffs: Record<string, number>;
+  is_default: boolean;
 }
 
 interface AdminTemplate {
@@ -49,6 +77,7 @@ interface AdminTemplate {
   year: number;
   semester: number;
   branch: string;
+  grading_scheme_id: number | null;
 }
 
 const SemesterInput = () => {
@@ -65,13 +94,17 @@ const SemesterInput = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSetupForm, setShowSetupForm] = useState(false);
+  const [gradingSchemes, setGradingSchemes] = useState<GradingScheme[]>([]);
+  const [gradeOverrideOpen, setGradeOverrideOpen] = useState<number | null>(null);
   
   const [stats, setStats] = useState({
     sgpa: 0,
-    totalCredits: 0,
+    creditsForGpa: 0,
+    totalDisplayCredits: 0,
   });
 
   useEffect(() => {
+    loadGradingSchemes();
     if (id && id !== 'new') {
       loadSemester(parseInt(id));
     } else {
@@ -84,6 +117,27 @@ const SemesterInput = () => {
   useEffect(() => {
     calculateStats();
   }, [subjects]);
+
+  const loadGradingSchemes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grading_schemes')
+        .select('*')
+        .order('is_default', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading grading schemes:', error);
+        return;
+      }
+      
+      setGradingSchemes((data || []).map(scheme => ({
+        ...scheme,
+        grade_cutoffs: scheme.grade_cutoffs as Record<string, number>
+      })));
+    } catch (error) {
+      console.error('Error loading grading schemes:', error);
+    }
+  };
 
   const loadSemester = async (semesterId: number) => {
     try {
@@ -120,16 +174,25 @@ const SemesterInput = () => {
       }
 
       if (marksData && marksData.length > 0) {
-        const formattedSubjects = marksData.map(mark => ({
-          id: mark.id,
-          subject_name: mark.subject_name,
-          credits: mark.credits,
-          cws_mark: mark.cws_mark,
-          mte_mark: mark.mte_mark,
-          ete_mark: mark.ete_mark,
-          assumed_marks: mark.assumed_marks as any,
-          ...calculateGradeAndPoints(mark.cws_mark, mark.mte_mark, mark.ete_mark),
-        }));
+        const formattedSubjects: SubjectMark[] = [];
+        
+        for (const mark of marksData) {
+          const gradeData = await calculateGradeAndPoints(mark.cws_mark, mark.mte_mark, mark.ete_mark, null);
+          formattedSubjects.push({
+            id: mark.id,
+            subject_name: mark.subject_name,
+            credits: mark.credits,
+            cws_mark: mark.cws_mark,
+            mte_mark: mark.mte_mark,
+            ete_mark: mark.ete_mark,
+            assumed_marks: mark.assumed_marks as any,
+            is_graded: mark.is_graded ?? true,
+            overridden_grade: mark.overridden_grade,
+            overridden_points: mark.overridden_points,
+            ...gradeData,
+          });
+        }
+        
         setSubjects(formattedSubjects);
       } else {
         loadTemplateSubjects();
@@ -156,13 +219,16 @@ const SemesterInput = () => {
       }
 
       if (data && data.length > 0) {
-        const templateSubjects = data.map(template => ({
+        const templateSubjects: SubjectMark[] = data.map(template => ({
           subject_name: template.subject_name,
           credits: template.default_credits,
           cws_mark: null,
           mte_mark: null,
           ete_mark: null,
           assumed_marks: { cws: false, mte: false, ete: false },
+          is_graded: true,
+          overridden_grade: null,
+          overridden_points: null,
           total: 0,
           grade: 'F',
           points: 0,
@@ -174,7 +240,7 @@ const SemesterInput = () => {
     }
   };
 
-  const calculateGradeAndPoints = (cws: number | null, mte: number | null, ete: number | null) => {
+  const calculateGradeAndPoints = async (cws: number | null, mte: number | null, ete: number | null, templateSchemeId: number | null) => {
     const cwsScore = cws || 0;
     const mteScore = mte || 0;
     const eteScore = ete || 0;
@@ -183,41 +249,62 @@ const SemesterInput = () => {
     let grade = 'F';
     let points = 0;
 
-    if (total >= 85) { grade = 'A+'; points = 10; }
-    else if (total >= 75) { grade = 'A'; points = 9; }
-    else if (total >= 65) { grade = 'B+'; points = 8; }
-    else if (total >= 55) { grade = 'B'; points = 7; }
-    else if (total >= 50) { grade = 'C'; points = 6; }
-    else if (total >= 45) { grade = 'P'; points = 5; }
-    else if (total >= 40) { grade = 'P-'; points = 4; }
+    // Use default scheme for now - in a full implementation, we'd use the template's scheme
+    const defaultScheme = gradingSchemes.find(s => s.is_default) || {
+      grade_cutoffs: { "A+": 85, "A": 75, "B+": 65, "B": 55, "C": 50, "P": 45, "P-": 40, "F": 0 }
+    };
+
+    const cutoffs = defaultScheme.grade_cutoffs;
+    const gradeEntries = Object.entries(cutoffs).sort(([,a], [,b]) => b - a);
+
+    for (const [gradeKey, minScore] of gradeEntries) {
+      if (total >= minScore) {
+        grade = gradeKey;
+        break;
+      }
+    }
+
+    // Map grades to points
+    const gradeToPoints: Record<string, number> = {
+      'A+': 10, 'A': 9, 'B+': 8, 'B': 7, 'C': 6, 'P': 5, 'P-': 4, 'F': 0
+    };
+    points = gradeToPoints[grade] || 0;
 
     return { total, grade, points };
   };
 
   const calculateStats = () => {
     let totalWeightedPoints = 0;
-    let totalCredits = 0;
+    let creditsForGpa = 0;
+    let totalDisplayCredits = 0;
 
     subjects.forEach(subject => {
-      totalCredits += subject.credits;
-      totalWeightedPoints += subject.points * subject.credits;
+      totalDisplayCredits += subject.credits;
+      
+      // Only include graded subjects in SGPA calculation
+      if (subject.is_graded) {
+        creditsForGpa += subject.credits;
+        const pointsToUse = subject.overridden_points !== null ? subject.overridden_points : subject.points;
+        totalWeightedPoints += pointsToUse * subject.credits;
+      }
     });
 
-    const sgpa = totalCredits > 0 ? totalWeightedPoints / totalCredits : 0;
+    const sgpa = creditsForGpa > 0 ? totalWeightedPoints / creditsForGpa : 0;
     setStats({
       sgpa: Math.round(sgpa * 100) / 100,
-      totalCredits,
+      creditsForGpa,
+      totalDisplayCredits,
     });
   };
 
-  const updateSubject = (index: number, field: keyof SubjectMark, value: any) => {
+  const updateSubject = async (index: number, field: keyof SubjectMark, value: any) => {
     const updatedSubjects = [...subjects];
     updatedSubjects[index] = { ...updatedSubjects[index], [field]: value };
     
     // Recalculate grade and points if marks changed
     if (field === 'cws_mark' || field === 'mte_mark' || field === 'ete_mark') {
       const subject = updatedSubjects[index];
-      const gradeData = calculateGradeAndPoints(subject.cws_mark, subject.mte_mark, subject.ete_mark);
+      const gradeData = await calculateGradeAndPoints(subject.cws_mark, subject.mte_mark, subject.ete_mark, null);
       updatedSubjects[index] = { ...updatedSubjects[index], ...gradeData };
     }
     
@@ -238,6 +325,9 @@ const SemesterInput = () => {
       mte_mark: null,
       ete_mark: null,
       assumed_marks: { cws: false, mte: false, ete: false },
+      is_graded: true,
+      overridden_grade: null,
+      overridden_points: null,
       total: 0,
       grade: 'F',
       points: 0,
@@ -269,6 +359,50 @@ const SemesterInput = () => {
     setSubjects(updatedSubjects);
   };
 
+  const getSemesterOptions = (selectedYear: number) => {
+    const semesterMap: Record<number, { value: number; label: string }[]> = {
+      1: [{ value: 1, label: 'Semester 1' }, { value: 2, label: 'Semester 2' }],
+      2: [{ value: 3, label: 'Semester 3' }, { value: 4, label: 'Semester 4' }],
+      3: [{ value: 5, label: 'Semester 5' }, { value: 6, label: 'Semester 6' }],
+      4: [{ value: 7, label: 'Semester 7' }, { value: 8, label: 'Semester 8' }],
+    };
+    return semesterMap[selectedYear] || [];
+  };
+
+  const handleYearChange = (newYear: number) => {
+    setYear(newYear);
+    const availableSemesters = getSemesterOptions(newYear);
+    if (availableSemesters.length > 0) {
+      setSemester(availableSemesters[0].value);
+    }
+  };
+
+  const handleManualGradeOverride = async (index: number, newGrade: string) => {
+    const gradeToPoints: Record<string, number> = {
+      'A+': 10, 'A': 9, 'B+': 8, 'B': 7, 'C': 6, 'P': 5, 'P-': 4, 'F': 0, 'S': 0, 'U': 0
+    };
+
+    const updatedSubjects = [...subjects];
+    updatedSubjects[index] = {
+      ...updatedSubjects[index],
+      overridden_grade: newGrade,
+      overridden_points: gradeToPoints[newGrade] || 0,
+    };
+    
+    setSubjects(updatedSubjects);
+    setGradeOverrideOpen(null);
+  };
+
+  const getSubjectGradingScheme = (templateSchemeId: number | null) => {
+    if (templateSchemeId) {
+      return gradingSchemes.find(s => s.id === templateSchemeId);
+    }
+    return gradingSchemes.find(s => s.is_default) || {
+      scheme_name: 'Default',
+      grade_cutoffs: { "A+": 85, "A": 75, "B+": 65, "B": 55, "C": 50, "P": 45, "P-": 40, "F": 0 }
+    };
+  };
+
   const resetToTemplate = async () => {
     await loadTemplateSubjects();
     toast({
@@ -295,7 +429,7 @@ const SemesterInput = () => {
             semester,
             branch,
             calculated_sgpa: stats.sgpa,
-            total_credits: stats.totalCredits,
+            total_credits: stats.totalDisplayCredits,
           })
           .eq('id', semesterId);
 
@@ -313,7 +447,7 @@ const SemesterInput = () => {
             semester,
             branch,
             calculated_sgpa: stats.sgpa,
-            total_credits: stats.totalCredits,
+            total_credits: stats.totalDisplayCredits,
           })
           .select()
           .single();
@@ -340,6 +474,9 @@ const SemesterInput = () => {
           mte_mark: subject.mte_mark,
           ete_mark: subject.ete_mark,
           assumed_marks: subject.assumed_marks,
+          is_graded: subject.is_graded,
+          overridden_grade: subject.overridden_grade,
+          overridden_points: subject.overridden_points,
         }));
 
         const { error: marksError } = await supabase
@@ -402,7 +539,7 @@ const SemesterInput = () => {
           <CardContent className="space-y-4">
             <div>
               <label className="text-sm font-medium">Year</label>
-              <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
+              <Select value={year.toString()} onValueChange={(v) => handleYearChange(parseInt(v))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -420,8 +557,8 @@ const SemesterInput = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[1, 2].map(s => (
-                    <SelectItem key={s} value={s.toString()}>Semester {s}</SelectItem>
+                  {getSemesterOptions(year).map(sem => (
+                    <SelectItem key={sem.value} value={sem.value.toString()}>{sem.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -461,7 +598,7 @@ const SemesterInput = () => {
             className="text-xl font-semibold"
           />
           <div className="flex gap-2 text-sm text-muted-foreground">
-            <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
+            <Select value={year.toString()} onValueChange={(v) => handleYearChange(parseInt(v))}>
               <SelectTrigger className="w-20">
                 <SelectValue />
               </SelectTrigger>
@@ -476,8 +613,8 @@ const SemesterInput = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[1, 2].map(s => (
-                  <SelectItem key={s} value={s.toString()}>Sem {s}</SelectItem>
+                {getSemesterOptions(year).map(sem => (
+                  <SelectItem key={sem.value} value={sem.value.toString()}>Sem {sem.value}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -521,7 +658,7 @@ const SemesterInput = () => {
             <CardTitle className="text-sm font-medium">Total Credits</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-brand-secondary">{stats.totalCredits}</div>
+            <div className="text-3xl font-bold text-brand-secondary">{stats.totalDisplayCredits}</div>
           </CardContent>
         </Card>
       </div>
@@ -543,6 +680,7 @@ const SemesterInput = () => {
                   <TableHead className="w-[120px]">ETE (40)</TableHead>
                   <TableHead className="w-[80px]">Total</TableHead>
                   <TableHead className="w-[80px]">Grade</TableHead>
+                  <TableHead className="w-[80px]">Graded</TableHead>
                   <TableHead className="w-[60px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -550,12 +688,28 @@ const SemesterInput = () => {
                 {subjects.map((subject, index) => (
                   <TableRow key={index}>
                     <TableCell>
-                      <Input
-                        value={subject.subject_name}
-                        onChange={(e) => updateSubject(index, 'subject_name', e.target.value)}
-                        placeholder="Subject name"
-                        className="min-w-[180px]"
-                      />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Input
+                              value={subject.subject_name}
+                              onChange={(e) => updateSubject(index, 'subject_name', e.target.value)}
+                              placeholder="Subject name"
+                              className="min-w-[180px]"
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="text-sm">
+                              <div className="font-medium mb-1">Grading Scheme: {getSubjectGradingScheme(null).scheme_name}</div>
+                              {Object.entries(getSubjectGradingScheme(null).grade_cutoffs)
+                                .sort(([,a], [,b]) => b - a)
+                                .map(([grade, cutoff]) => (
+                                  <div key={grade}>{grade}: {cutoff} and above</div>
+                                ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </TableCell>
                     <TableCell>
                       <Input
@@ -635,9 +789,57 @@ const SemesterInput = () => {
                       <div className="font-medium">{subject.total}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getGradeBadgeColor(subject.grade)}>
-                        {subject.grade}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className={getGradeBadgeColor(
+                          subject.is_graded 
+                            ? (subject.overridden_grade || subject.grade)
+                            : (subject.total >= 40 ? 'S' : 'U')
+                        )}>
+                          {subject.is_graded 
+                            ? (subject.overridden_grade || subject.grade)
+                            : (subject.total >= 40 ? 'S' : 'U')
+                          }
+                          {subject.overridden_grade && '*'}
+                        </Badge>
+                        {subject.is_graded && (
+                          <AlertDialog open={gradeOverrideOpen === index} onOpenChange={(open) => setGradeOverrideOpen(open ? index : null)}>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                <Edit2 className="h-3 w-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Manual Grade Override</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will override the automatically calculated grade. Use this feature carefully as it affects your SGPA calculation.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <div className="py-4">
+                                <Select onValueChange={(value) => handleManualGradeOverride(index, value)}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select a grade" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {['A+', 'A', 'B+', 'B', 'C', 'P', 'P-', 'F'].map(grade => (
+                                      <SelectItem key={grade} value={grade}>{grade}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={subject.is_graded}
+                        onCheckedChange={(checked) => updateSubject(index, 'is_graded', checked)}
+                      />
                     </TableCell>
                     <TableCell>
                       <Button

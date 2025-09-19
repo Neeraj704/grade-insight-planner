@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Settings } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -28,6 +28,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface SubjectTemplate {
   id: number;
@@ -36,15 +53,28 @@ interface SubjectTemplate {
   year: number;
   semester: number;
   branch: string;
+  grading_scheme_id?: number | null;
+}
+
+interface GradingScheme {
+  id: number;
+  scheme_name: string;
+  grade_cutoffs: Record<string, number>;
+  is_default: boolean;
 }
 
 const Admin = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const [templates, setTemplates] = useState<SubjectTemplate[]>([]);
+  const [gradingSchemes, setGradingSchemes] = useState<GradingScheme[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSchemeDialogOpen, setIsSchemeDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<SubjectTemplate | null>(null);
+  const [editingScheme, setEditingScheme] = useState<GradingScheme | null>(null);
+  const [deleteTemplateId, setDeleteTemplateId] = useState<number | null>(null);
+  const [deleteSchemeId, setDeleteSchemeId] = useState<number | null>(null);
   
   const [formData, setFormData] = useState({
     subject_name: '',
@@ -52,6 +82,21 @@ const Admin = () => {
     year: 1,
     semester: 1,
     branch: 'CSE',
+    grading_scheme_id: null as number | null,
+  });
+
+  const [schemeFormData, setSchemeFormData] = useState({
+    scheme_name: '',
+    grade_cutoffs: {
+      'A+': 85,
+      'A': 75,
+      'B+': 65,
+      'B': 55,
+      'C': 50,
+      'P': 45,
+      'P-': 40,
+      'F': 0,
+    },
   });
 
   useEffect(() => {
@@ -64,7 +109,31 @@ const Admin = () => {
       return;
     }
     loadTemplates();
+    loadGradingSchemes();
   }, [profile]);
+
+  const loadGradingSchemes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('grading_schemes')
+        .select('*')
+        .order('is_default', { ascending: false });
+
+      if (error) throw error;
+      
+      setGradingSchemes((data || []).map(scheme => ({
+        ...scheme,
+        grade_cutoffs: scheme.grade_cutoffs as Record<string, number>
+      })));
+    } catch (error) {
+      console.error('Error loading grading schemes:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to load grading schemes.',
+      });
+    }
+  };
 
   const loadTemplates = async () => {
     try {
@@ -126,6 +195,7 @@ const Admin = () => {
         year: 1,
         semester: 1,
         branch: 'CSE',
+        grading_scheme_id: null,
       });
       loadTemplates();
     } catch (error) {
@@ -140,19 +210,18 @@ const Admin = () => {
 
   const handleEdit = (template: SubjectTemplate) => {
     setEditingTemplate(template);
-    setFormData({
-      subject_name: template.subject_name,
-      default_credits: template.default_credits,
-      year: template.year,
-      semester: template.semester,
-      branch: template.branch,
-    });
+      setFormData({
+        subject_name: template.subject_name,
+        default_credits: template.default_credits,
+        year: template.year,
+        semester: template.semester,
+        branch: template.branch,
+        grading_scheme_id: template.grading_scheme_id || null,
+      });
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this template?')) return;
-    
     try {
       const { error } = await supabase
         .from('admin_subject_templates')
@@ -167,12 +236,102 @@ const Admin = () => {
       });
       
       loadTemplates();
+      setDeleteTemplateId(null);
     } catch (error) {
       console.error('Error deleting template:', error);
       toast({
         variant: 'destructive',
         title: 'Delete Failed',
         description: 'Failed to delete subject template.',
+      });
+    }
+  };
+
+  const handleSchemeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      if (editingScheme) {
+        const { error } = await supabase
+          .from('grading_schemes')
+          .update({
+            scheme_name: schemeFormData.scheme_name,
+            grade_cutoffs: schemeFormData.grade_cutoffs,
+          })
+          .eq('id', editingScheme.id);
+        
+        if (error) throw error;
+        
+        toast({
+          title: 'Updated Successfully',
+          description: 'Grading scheme has been updated.',
+        });
+      } else {
+        const { error } = await supabase
+          .from('grading_schemes')
+          .insert({
+            scheme_name: schemeFormData.scheme_name,
+            grade_cutoffs: schemeFormData.grade_cutoffs,
+          });
+        
+        if (error) throw error;
+        
+        toast({
+          title: 'Added Successfully',
+          description: 'New grading scheme has been added.',
+        });
+      }
+      
+      setIsSchemeDialogOpen(false);
+      setEditingScheme(null);
+      setSchemeFormData({
+        scheme_name: '',
+        grade_cutoffs: {
+          'A+': 85, 'A': 75, 'B+': 65, 'B': 55, 'C': 50, 'P': 45, 'P-': 40, 'F': 0,
+        } as any,
+      });
+      loadGradingSchemes();
+    } catch (error) {
+      console.error('Error saving grading scheme:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Save Failed',
+        description: 'Failed to save grading scheme.',
+      });
+    }
+  };
+
+  const handleEditScheme = (scheme: GradingScheme) => {
+    setEditingScheme(scheme);
+    setSchemeFormData({
+      scheme_name: scheme.scheme_name,
+      grade_cutoffs: { ...scheme.grade_cutoffs },
+    });
+    setIsSchemeDialogOpen(true);
+  };
+
+  const handleDeleteScheme = async (id: number) => {
+    try {
+      const { error } = await supabase
+        .from('grading_schemes')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Deleted Successfully',
+        description: 'Grading scheme has been deleted.',
+      });
+      
+      loadGradingSchemes();
+      setDeleteSchemeId(null);
+    } catch (error) {
+      console.error('Error deleting grading scheme:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Delete Failed',
+        description: 'Failed to delete grading scheme.',
       });
     }
   };
