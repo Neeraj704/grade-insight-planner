@@ -8,34 +8,51 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
+    /* GradeInsight Brand Colors */
+    --brand-primary: 220 91% 46%; /* #1565D8 */
+    --brand-secondary: 180 79% 34%; /* #0EA5A4 */
+    --accent-highlight: 43 96% 56%; /* #FFB020 */
+    
+    /* Status Colors */
+    --success: 142 76% 36%; /* #16A34A */
+    --danger: 0 84% 60%; /* #EF4444 */
+    
+    /* Surfaces */
+    --background: 0 0% 100%; /* #FFFFFF */
+    --page-background: 210 40% 98%; /* #F6F8FA */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 222 47% 11%; /* #0F172A */
+    
+    /* Text */
+    --foreground: 222 47% 11%; /* #0F172A */
+    --muted-foreground: 220 14% 46%; /* #6B7280 */
+    
+    /* Interactive Elements */
+    --primary: 220 91% 46%; /* Brand Primary */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 180 79% 34%; /* Brand Secondary */
+    --secondary-foreground: 0 0% 100%;
+    --accent: 43 96% 56%; /* Accent Highlight */
+    --accent-foreground: 222 47% 11%;
+    
+    /* UI Elements */
+    --border: 214 32% 91%; /* #E6EAF0 */
+    --input: 214 32% 91%;
+    --ring: 220 91% 46%;
+    --muted: 210 40% 96%;
+    
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
+    --popover-foreground: 222 47% 11%;
+    
+    /* Assumed Marks */
+    --assumed-bg: 43 100% 94%; /* rgba(255, 249, 219, 0.5) */
+    --assumed-border: 45 93% 70%; /* #FFD666 */
+    
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;

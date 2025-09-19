@@ -14,13 +14,154 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_subject_templates: {
+        Row: {
+          branch: string
+          default_credits: number
+          id: number
+          semester: number
+          subject_name: string
+          year: number
+        }
+        Insert: {
+          branch: string
+          default_credits: number
+          id?: never
+          semester: number
+          subject_name: string
+          year: number
+        }
+        Update: {
+          branch?: string
+          default_credits?: number
+          id?: never
+          semester?: number
+          subject_name?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          college_name: string | null
+          enrollment_no: string | null
+          full_name: string | null
+          id: string
+          role: string
+          updated_at: string | null
+        }
+        Insert: {
+          college_name?: string | null
+          enrollment_no?: string | null
+          full_name?: string | null
+          id: string
+          role?: string
+          updated_at?: string | null
+        }
+        Update: {
+          college_name?: string | null
+          enrollment_no?: string | null
+          full_name?: string | null
+          id?: string
+          role?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      student_semesters: {
+        Row: {
+          branch: string
+          calculated_sgpa: number | null
+          created_at: string | null
+          id: number
+          semester: number
+          semester_title: string
+          total_credits: number | null
+          user_id: string
+          year: number
+        }
+        Insert: {
+          branch: string
+          calculated_sgpa?: number | null
+          created_at?: string | null
+          id?: never
+          semester: number
+          semester_title: string
+          total_credits?: number | null
+          user_id: string
+          year: number
+        }
+        Update: {
+          branch?: string
+          calculated_sgpa?: number | null
+          created_at?: string | null
+          id?: never
+          semester?: number
+          semester_title?: string
+          total_credits?: number | null
+          user_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_semesters_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_subject_marks: {
+        Row: {
+          assumed_marks: Json | null
+          credits: number
+          cws_mark: number | null
+          ete_mark: number | null
+          id: number
+          mte_mark: number | null
+          semester_id: number
+          subject_name: string
+        }
+        Insert: {
+          assumed_marks?: Json | null
+          credits: number
+          cws_mark?: number | null
+          ete_mark?: number | null
+          id?: never
+          mte_mark?: number | null
+          semester_id: number
+          subject_name: string
+        }
+        Update: {
+          assumed_marks?: Json | null
+          credits?: number
+          cws_mark?: number | null
+          ete_mark?: number | null
+          id?: never
+          mte_mark?: number | null
+          semester_id?: number
+          subject_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_subject_marks_semester_id_fkey"
+            columns: ["semester_id"]
+            isOneToOne: false
+            referencedRelation: "student_semesters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

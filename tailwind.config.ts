@@ -19,6 +19,26 @@ export default {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        
+        /* GradeInsight Brand Colors */
+        brand: {
+          primary: "hsl(var(--brand-primary))",
+          secondary: "hsl(var(--brand-secondary))",
+        },
+        
+        /* Page Background */
+        "page-bg": "hsl(var(--page-background))",
+        
+        /* Status Colors */
+        success: "hsl(var(--success))",
+        danger: "hsl(var(--danger))",
+        
+        /* Assumed Marks */
+        assumed: {
+          bg: "hsl(var(--assumed-bg))",
+          border: "hsl(var(--assumed-border))",
+        },
+        
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
