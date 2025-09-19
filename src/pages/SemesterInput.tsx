@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus, Save, Trash2, RotateCcw, Target } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Table,
   TableBody,
@@ -63,6 +64,7 @@ const SemesterInput = () => {
   const [subjects, setSubjects] = useState<SubjectMark[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showSetupForm, setShowSetupForm] = useState(false);
   
   const [stats, setStats] = useState({
     sgpa: 0,
@@ -73,7 +75,8 @@ const SemesterInput = () => {
     if (id && id !== 'new') {
       loadSemester(parseInt(id));
     } else {
-      // New semester - load with empty state
+      // New semester - show setup form
+      setShowSetupForm(true);
       setLoading(false);
     }
   }, [id]);
@@ -375,10 +378,73 @@ const SemesterInput = () => {
     return 'bg-danger text-white';
   };
 
+  const handleSetupComplete = async () => {
+    setSemesterTitle(`Year ${year} - Semester ${semester}`);
+    setShowSetupForm(false);
+    await loadTemplateSubjects();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
+      </div>
+    );
+  }
+
+  if (showSetupForm) {
+    return (
+      <div className="max-w-md mx-auto mt-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>New Semester Setup</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Year</label>
+              <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4].map(y => (
+                    <SelectItem key={y} value={y.toString()}>Year {y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Semester</label>
+              <Select value={semester.toString()} onValueChange={(v) => setSemester(parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2].map(s => (
+                    <SelectItem key={s} value={s.toString()}>Semester {s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Branch</label>
+              <Select value={branch} onValueChange={setBranch}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CSE">Computer Science Engineering</SelectItem>
+                  <SelectItem value="ECE">Electronics & Communication</SelectItem>
+                  <SelectItem value="ME">Mechanical Engineering</SelectItem>
+                  <SelectItem value="CE">Civil Engineering</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSetupComplete} className="w-full bg-brand-primary hover:bg-brand-primary/90">
+              Load Subjects
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -506,7 +572,10 @@ const SemesterInput = () => {
                           value={subject.cws_mark || ''}
                           onChange={(e) => updateSubject(index, 'cws_mark', parseFloat(e.target.value) || null)}
                           placeholder="0"
-                          className={`w-[80px] ${subject.assumed_marks.cws ? 'bg-assumed-bg border-assumed-border border-dashed' : ''}`}
+                          className={cn(
+                            'w-[80px]',
+                            subject.assumed_marks.cws && 'bg-assumed-bg border-assumed-border border-dashed'
+                          )}
                         />
                         <Button
                           variant={subject.assumed_marks.cws ? 'default' : 'outline'}
@@ -525,7 +594,10 @@ const SemesterInput = () => {
                           value={subject.mte_mark || ''}
                           onChange={(e) => updateSubject(index, 'mte_mark', parseFloat(e.target.value) || null)}
                           placeholder="0"
-                          className={`w-[80px] ${subject.assumed_marks.mte ? 'bg-assumed-bg border-assumed-border border-dashed' : ''}`}
+                          className={cn(
+                            'w-[80px]',
+                            subject.assumed_marks.mte && 'bg-assumed-bg border-assumed-border border-dashed'
+                          )}
                         />
                         <Button
                           variant={subject.assumed_marks.mte ? 'default' : 'outline'}
@@ -544,7 +616,10 @@ const SemesterInput = () => {
                           value={subject.ete_mark || ''}
                           onChange={(e) => updateSubject(index, 'ete_mark', parseFloat(e.target.value) || null)}
                           placeholder="0"
-                          className={`w-[80px] ${subject.assumed_marks.ete ? 'bg-assumed-bg border-assumed-border border-dashed' : ''}`}
+                          className={cn(
+                            'w-[80px]',
+                            subject.assumed_marks.ete && 'bg-assumed-bg border-assumed-border border-dashed'
+                          )}
                         />
                         <Button
                           variant={subject.assumed_marks.ete ? 'default' : 'outline'}

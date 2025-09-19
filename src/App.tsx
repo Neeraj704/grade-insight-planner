@@ -8,6 +8,10 @@ import Layout from "@/components/Layout";
 import Auth from "@/pages/Auth";
 import Dashboard from "@/pages/Dashboard";
 import SemesterInput from "@/pages/SemesterInput";
+import Admin from "@/pages/Admin";
+import Profile from "@/pages/Profile";
+import Predictions from "@/pages/Predictions";
+import Semesters from "@/pages/Semesters";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,9 +30,29 @@ const App = () => (
                 <Dashboard />
               </Layout>
             } />
+            <Route path="/semesters" element={
+              <Layout title="All Semesters">
+                <Semesters />
+              </Layout>
+            } />
             <Route path="/semesters/:id" element={
               <Layout title="Semester Details">
                 <SemesterInput />
+              </Layout>
+            } />
+            <Route path="/predictions" element={
+              <Layout title="What-If Predictions">
+                <Predictions />
+              </Layout>
+            } />
+            <Route path="/profile" element={
+              <Layout title="Profile Settings">
+                <Profile />
+              </Layout>
+            } />
+            <Route path="/admin" element={
+              <Layout title="Admin Panel">
+                <Admin />
               </Layout>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

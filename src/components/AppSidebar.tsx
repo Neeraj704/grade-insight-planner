@@ -20,12 +20,12 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 
-const navigationItems = [
-  { title: 'Dashboard', url: '/', icon: LayoutDashboard },
-  { title: 'Semesters', url: '/semesters', icon: BookCopy },
-  { title: 'Predictions', url: '/predictions', icon: Target },
-  { title: 'Profile', url: '/profile', icon: User },
-];
+  const navigationItems = [
+    { title: 'Dashboard', url: '/', icon: LayoutDashboard },
+    { title: 'Semesters', url: '/semesters', icon: BookCopy },
+    { title: 'Predictions', url: '/predictions', icon: Target },
+    { title: 'Profile', url: '/profile', icon: User },
+  ];
 
 export function AppSidebar() {
   const location = useLocation();
